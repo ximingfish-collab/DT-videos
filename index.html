@@ -302,6 +302,10 @@
       background: #f4faf6;
     }
 
+    td.status-cell { min-width: 142px; white-space: nowrap; }
+    td.status-cell a { color: var(--blue); font-weight: 700; text-decoration: none; }
+    td.status-cell a:hover { text-decoration: underline; }
+
     .copy-cell {
       position: absolute;
       top: 9px;
@@ -488,6 +492,7 @@
       const lines = source.replace(/\r/g, "").split("\n");
       const html = [];
       const usedSlugs = new Map();
+      let currentVideoFolder = "";
       let i = 0;
 
       while (i < lines.length) {
@@ -508,6 +513,13 @@
         if (heading) {
           const level = heading[1].length;
           const id = slugify(heading[2], usedSlugs);
+          if (level === 2) {
+            const section = heading[2].match(/^([2-7])\.\s/);
+            currentVideoFolder = section ? section[1] : "";
+          } else if (level === 3) {
+            const subsection = heading[2].match(/^([2-7])\.(\d+)\s/);
+            if (subsection) currentVideoFolder = `${subsection[1]}/${subsection[1]}.${subsection[2]}`;
+          }
           html.push(`<h${level} id="${id}">${inline(heading[2])}</h${level}>`);
           i++;
           continue;
@@ -525,6 +537,14 @@
           i += 2;
           const rows = [];
           while (i < lines.length && lines[i].trim().startsWith("|")) rows.push(splitRow(lines[i++]));
+          if (headers[0] === "视频名") {
+            const promptIndex = headers.findIndex(header => /提示词/.test(header));
+            headers.splice(promptIndex + 1, 0, "状态");
+            rows.forEach(row => {
+              row.splice(promptIndex + 1, 0, "待制作");
+            });
+          }
+          const videoFolder = currentVideoFolder;
           html.push('<div class="table-wrap"><table><thead><tr>');
           headers.forEach(cell => html.push(`<th>${inline(cell)}</th>`));
           html.push("</tr></thead><tbody>");
@@ -533,8 +553,16 @@
             html.push("<tr>");
             headers.forEach((header, index) => {
               const prompt = /提示词/.test(header);
+              const status = header === "状态";
               const content = row[index] || "";
-              html.push(`<td${prompt ? ` class="prompt-cell" data-prompt="true" data-video="${escapeHtml(videoName)}"` : ""}>${inline(content)}${prompt && content ? '<button class="copy-cell" type="button" title="复制提示词" aria-label="复制提示词">⧉</button>' : ""}</td>`);
+              let attributes = "";
+              if (prompt) {
+                attributes = ` class="prompt-cell" data-prompt="true" data-video="${escapeHtml(videoName)}"`;
+              } else if (status) {
+                const videoSrc = `videos/${videoFolder}/${videoName}`;
+                attributes = ` class="status-cell" data-video-src="${escapeHtml(videoSrc)}"`;
+              }
+              html.push(`<td${attributes}>${inline(content)}${prompt && content ? '<button class="copy-cell" type="button" title="复制提示词" aria-label="复制提示词">⧉</button>' : ""}</td>`);
             });
             html.push("</tr>");
           });
@@ -585,6 +613,33 @@
 
     const content = document.querySelector("#content");
     content.innerHTML = '<p class="hint">提示：表格「视频生成参考提示词」列右侧 ⧉ 可一键复制。默认开启「复制时带前缀」，会自动拼接 0.1 通用前缀与外出/顾客/商人场景前缀。</p>' + renderMarkdown(markdown);
+
+    const videoProbes = new Set();
+    content.querySelectorAll("[data-video-src]").forEach(cell => {
+      const src = cell.dataset.videoSrc;
+      const probe = document.createElement("video");
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        probe.removeAttribute("src");
+        videoProbes.delete(probe);
+      };
+      probe.preload = "metadata";
+      probe.addEventListener("loadedmetadata", () => {
+        const link = document.createElement("a");
+        link.href = src;
+        link.target = "_blank";
+        link.rel = "noopener";
+        link.textContent = "播放当前制作结果";
+        link.title = src;
+        cell.replaceChildren(link);
+        finish();
+      }, { once: true });
+      probe.addEventListener("error", finish, { once: true });
+      videoProbes.add(probe);
+      probe.src = src;
+    });
 
     const headings = [...content.querySelectorAll("h2, h3")];
     const toc = document.querySelector("#toc");
