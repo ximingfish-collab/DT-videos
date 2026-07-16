@@ -542,7 +542,9 @@
             const promptIndex = headers.findIndex(header => /提示词/.test(header));
             headers.splice(promptIndex + 1, 0, "状态");
             rows.forEach(row => {
-              row.splice(promptIndex + 1, 0, "待制作");
+              const videoName = (row[0] || "").replace(/`/g, "").trim();
+              const deferred = /_(?:black|glow)_wine_bad\.mp4$/.test(videoName);
+              row.splice(promptIndex + 1, 0, deferred ? "暂不制作" : "待制作");
             });
           }
           const videoFolder = currentVideoFolder;
@@ -560,8 +562,11 @@
               if (prompt) {
                 attributes = ` class="prompt-cell" data-prompt="true" data-video="${escapeHtml(videoName)}"`;
               } else if (status) {
-                const videoSrc = `videos/${videoFolder}/${videoName}`;
-                attributes = ` class="status-cell" data-video-src="${escapeHtml(videoSrc)}"`;
+                attributes = ` class="status-cell"`;
+                if (content === "待制作") {
+                  const videoSrc = `videos/${videoFolder}/${videoName}`;
+                  attributes += ` data-video-src="${escapeHtml(videoSrc)}"`;
+                }
               }
               html.push(`<td${attributes}>${inline(content)}${prompt && content ? '<button class="copy-cell" type="button" title="复制提示词" aria-label="复制提示词">⧉</button>' : ""}</td>`);
             });
