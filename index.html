@@ -424,6 +424,7 @@
         <div class="stat"><strong id="assetCount">—</strong><span>视频资产</span></div>
         <div class="stat"><strong id="promptCount">—</strong><span>可复制提示词</span></div>
         <div class="stat"><strong id="sectionCount">—</strong><span>内容章节</span></div>
+        <div class="stat"><strong id="doneCount">0</strong><span>已完成视频</span></div>
       </div>
     </div>
   </header>
@@ -614,6 +615,8 @@
     const content = document.querySelector("#content");
     content.innerHTML = '<p class="hint">提示：表格「视频生成参考提示词」列右侧 ⧉ 可一键复制。默认开启「复制时带前缀」，会自动拼接 0.1 通用前缀与外出/顾客/商人场景前缀。</p>' + renderMarkdown(markdown);
 
+    const doneCountEl = document.querySelector("#doneCount");
+    let doneCount = 0;
     const videoProbes = new Set();
     content.querySelectorAll("[data-video-src]").forEach(cell => {
       const src = cell.dataset.videoSrc;
@@ -634,6 +637,8 @@
         link.textContent = "播放当前制作结果";
         link.title = src;
         cell.replaceChildren(link);
+        doneCount += 1;
+        doneCountEl.textContent = String(doneCount);
         finish();
       }, { once: true });
       probe.addEventListener("error", finish, { once: true });
