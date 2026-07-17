@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>index.html 表格编辑器</title>
+  <style>
+    :root {
+      --bg: #f5f2ec;
+      --paper: #fffdf9;
+      --ink: #211d18;
+      --muted: #766e64;
+      --line: #ded7cd;
+      --accent: #7a4c18;
+      --accent-soft: #f4e8d6;
+      --green: #256c45;
+      --red: #a33c32;
+      color-scheme: light;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--bg);
+      font: 14px/1.6 "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+    }
+    button { font: inherit; cursor: pointer; }
+    .topbar {
+      position: sticky;
+      z-index: 20;
+      top: 0;
+      display: flex;
+      gap: 18px;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px max(22px, calc((100vw - 1480px) / 2));
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 253, 249, .95);
+      box-shadow: 0 5px 20px rgba(47, 38, 25, .06);
+      backdrop-filter: blur(14px);
+    }
+    .brand h1 { margin: 0; font: 700 20px/1.2 Georgia, "Microsoft YaHei", serif; }
+    .brand p { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
+    .actions { display: flex; gap: 10px; align-items: center; }
+    .status { color: var(--muted); white-space: nowrap; }
+    .status.dirty { color: var(--accent); font-weight: 700; }
+    .button {
+      min-height: 40px;
+      padding: 8px 16px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      color: var(--ink);
+      background: #fff;
+      font-weight: 700;
+    }
+    .button:hover { border-color: var(--accent); }
+    .button.primary { border-color: var(--green); color: #fff; background: var(--green); }
+    .button.primary:disabled { opacity: .55; cursor: wait; }
+    main { max-width: 1480px; margin: auto; padding: 28px 22px 80px; }
+    .guide {
+      margin-bottom: 22px;
+      padding: 13px 16px;
+      border: 1px solid #d9c7a8;
+      border-radius: 10px;
+      color: #65451f;
+      background: #fff8eb;
+    }
+    .table-card {
+      margin: 0 0 28px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: var(--paper);
+      box-shadow: 0 8px 28px rgba(47, 38, 25, .05);
+    }
+    .card-head {
+      display: flex;
+      gap: 14px;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+    }
+    .card-head h2 { margin: 0; font-size: 16px; }
+    .row-count { margin-left: 8px; color: var(--muted); font-size: 12px; font-weight: 400; }
+    .add-row {
+      padding: 6px 11px;
+      border: 1px solid #c9b28e;
+      border-radius: 8px;
+      color: var(--accent);
+      background: var(--accent-soft);
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .table-scroll { overflow: auto; }
+    table { width: 100%; min-width: 780px; border-collapse: collapse; }
+    th, td {
+      min-width: 90px;
+      padding: 11px 12px;
+      border-right: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+    th { position: sticky; top: 0; z-index: 2; color: #4c4031; background: #f1ece4; white-space: nowrap; }
+    tr:last-child td { border-bottom: 0; }
+    th:last-child, td:last-child { border-right: 0; }
+    td.editable { min-width: 130px; cursor: text; white-space: pre-wrap; }
+    td.editable:hover { background: #fff9ef; outline: 1px dashed #cda96f; outline-offset: -3px; }
+    td.editing {
+      background: #fff8e6;
+      outline: 2px solid #b17a32;
+      outline-offset: -2px;
+      box-shadow: inset 0 0 0 4px rgba(177, 122, 50, .08);
+    }
+    td.editing:focus { outline: 2px solid #b17a32; }
+    .row-actions { width: 54px; min-width: 54px; text-align: center; }
+    .delete-row {
+      border: 0;
+      color: var(--red);
+      background: transparent;
+      font-size: 17px;
+    }
+    .empty, .error {
+      padding: 70px 20px;
+      color: var(--muted);
+      text-align: center;
+    }
+    .error { color: var(--red); }
+    .toast {
+      position: fixed;
+      z-index: 50;
+      right: 24px;
+      bottom: 24px;
+      max-width: min(440px, calc(100vw - 48px));
+      padding: 12px 16px;
+      border: 1px solid #9cc6ae;
+      border-radius: 9px;
+      color: var(--green);
+      background: #fff;
+      box-shadow: 0 10px 35px rgba(0, 0, 0, .13);
+      opacity: 0;
+      transform: translateY(12px);
+      transition: .2s ease;
+      pointer-events: none;
+    }
+    .toast.error-toast { border-color: #daa9a4; color: var(--red); }
+    .toast.show { opacity: 1; transform: none; }
+    @media (max-width: 700px) {
+      .topbar { align-items: flex-start; padding: 12px 14px; }
+      .brand p, .status { display: none; }
+      main { padding: 18px 12px 60px; }
+      .button { padding: 7px 10px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <h1>index.html 表格编辑器</h1>
+      <p>独立工具 · 保存时直接更新原 HTML 中的表格数据</p>
+    </div>
+    <div class="actions">
+      <span class="status" id="status">正在读取…</span>
+      <button class="button" id="reload" type="button">重新载入</button>
+      <button class="button primary" id="save" type="button">保存到 index.html</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="guide">双击任意内容单元格开始编辑，按 Enter 完成，按 Esc 取消。每张表右上角可增加一行；完成后点击“保存到 index.html”。</div>
+    <div id="tables"><div class="empty">正在载入表格…</div></div>
+  </main>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    const tablesRoot = document.querySelector("#tables");
+    const statusEl = document.querySelector("#status");
+    const saveButton = document.querySelector("#save");
+    const reloadButton = document.querySelector("#reload");
+    const toast = document.querySelector("#toast");
+    let documentState = null;
+    let dirty = false;
+    let toastTimer;
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;");
+    }
+
+    function notify(message, isError = false) {
+      toast.textContent = message;
+      toast.classList.toggle("error-toast", isError);
+      toast.classList.add("show");
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove("show"), 2600);
+    }
+
+    function setDirty(value) {
+      dirty = value;
+      statusEl.textContent = value ? "有未保存的修改" : "所有修改已保存";
+      statusEl.classList.toggle("dirty", value);
+    }
+
+    function finishEditing(cell, cancel = false) {
+      if (!cell.classList.contains("editing")) return;
+      if (cancel) {
+        cell.textContent = cell.dataset.original;
+      } else {
+        const value = cell.textContent.replace(/\r?\n/g, " ").trim();
+        cell.textContent = value;
+        const table = documentState.tables[Number(cell.dataset.table)];
+        table.rows[Number(cell.dataset.row)][Number(cell.dataset.column)] = value;
+        if (value !== cell.dataset.original) setDirty(true);
+      }
+      cell.contentEditable = "false";
+      cell.classList.remove("editing");
+    }
+
+    function beginEditing(cell) {
+      document.querySelectorAll("td.editing").forEach(active => finishEditing(active));
+      cell.dataset.original = cell.textContent;
+      cell.contentEditable = "true";
+      cell.classList.add("editing");
+      cell.focus();
+      const range = document.createRange();
+      range.selectNodeContents(cell);
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+
+    function render() {
+      if (!documentState.tables.length) {
+        tablesRoot.innerHTML = '<div class="empty">index.html 中没有找到表格。</div>';
+        return;
+      }
+      tablesRoot.innerHTML = documentState.tables.map((table, tableIndex) => `
+        <section class="table-card" data-table="${tableIndex}">
+          <div class="card-head">
+            <h2>${escapeHtml(table.title)}<span class="row-count">${table.rows.length} 行</span></h2>
+            <button class="add-row" type="button">＋ 增加一行</button>
+          </div>
+          <div class="table-scroll">
+            <table>
+              <thead><tr>${table.headers.map(header => `<th>${escapeHtml(header)}</th>`).join("")}<th class="row-actions">操作</th></tr></thead>
+              <tbody>
+                ${table.rows.map((row, rowIndex) => rowHtml(tableIndex, rowIndex, row)).join("")}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      `).join("");
+    }
+
+    function rowHtml(tableIndex, rowIndex, row) {
+      return `<tr data-row="${rowIndex}">
+        ${row.map((cell, columnIndex) => `<td class="editable" data-table="${tableIndex}" data-row="${rowIndex}" data-column="${columnIndex}" title="双击编辑">${escapeHtml(cell)}</td>`).join("")}
+        <td class="row-actions"><button class="delete-row" type="button" title="删除此行" aria-label="删除此行">×</button></td>
+      </tr>`;
+    }
+
+    function syncRowIndexes(card, tableIndex) {
+      card.querySelectorAll("tbody tr").forEach((row, rowIndex) => {
+        row.dataset.row = rowIndex;
+        row.querySelectorAll("td.editable").forEach(cell => {
+          cell.dataset.table = tableIndex;
+          cell.dataset.row = rowIndex;
+        });
+      });
+      const table = documentState.tables[tableIndex];
+      card.querySelector(".row-count").textContent = `${table.rows.length} 行`;
+    }
+
+    async function loadDocument(force = false) {
+      if (dirty && !force && !confirm("尚有未保存的修改，确定重新载入吗？")) return;
+      statusEl.textContent = "正在读取…";
+      try {
+        const response = await fetch("/api/document", { cache: "no-store" });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "载入失败");
+        documentState = data;
+        render();
+        setDirty(false);
+      } catch (error) {
+        tablesRoot.innerHTML = `<div class="error">${escapeHtml(error.message)}</div>`;
+        statusEl.textContent = "载入失败";
+        notify(error.message, true);
+      }
+    }
+
+    async function saveDocument() {
+      document.querySelectorAll("td.editing").forEach(cell => finishEditing(cell));
+      saveButton.disabled = true;
+      saveButton.textContent = "保存中…";
+      try {
+        const response = await fetch("/api/save", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(documentState)
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "保存失败");
+        documentState = { version: data.version, tables: data.tables };
+        render();
+        setDirty(false);
+        notify("已保存到 index.html，并生成 index.html.bak 备份");
+      } catch (error) {
+        notify(error.message, true);
+      } finally {
+        saveButton.disabled = false;
+        saveButton.textContent = "保存到 index.html";
+      }
+    }
+
+    tablesRoot.addEventListener("dblclick", event => {
+      const cell = event.target.closest("td.editable");
+      if (cell) beginEditing(cell);
+    });
+
+    tablesRoot.addEventListener("focusout", event => {
+      const cell = event.target.closest("td.editing");
+      if (cell) finishEditing(cell);
+    });
+
+    tablesRoot.addEventListener("keydown", event => {
+      const cell = event.target.closest("td.editing");
+      if (!cell) return;
+      if (event.key === "Enter") {
+        event.preventDefault();
+        finishEditing(cell);
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        finishEditing(cell, true);
+      }
+    });
+
+    tablesRoot.addEventListener("click", event => {
+      const card = event.target.closest(".table-card");
+      if (!card) return;
+      const tableIndex = Number(card.dataset.table);
+      const table = documentState.tables[tableIndex];
+
+      if (event.target.closest(".add-row")) {
+        const row = table.headers.map(() => "");
+        table.rows.push(row);
+        const body = card.querySelector("tbody");
+        body.insertAdjacentHTML("beforeend", rowHtml(tableIndex, table.rows.length - 1, row));
+        syncRowIndexes(card, tableIndex);
+        setDirty(true);
+      }
+
+      const deleteButton = event.target.closest(".delete-row");
+      if (deleteButton) {
+        const rowElement = deleteButton.closest("tr");
+        const rowIndex = Number(rowElement.dataset.row);
+        if (!confirm("确定删除这一行吗？")) return;
+        table.rows.splice(rowIndex, 1);
+        rowElement.remove();
+        syncRowIndexes(card, tableIndex);
+        setDirty(true);
+      }
+    });
+
+    saveButton.addEventListener("click", saveDocument);
+    reloadButton.addEventListener("click", () => loadDocument());
+    window.addEventListener("beforeunload", event => {
+      if (!dirty) return;
+      event.preventDefault();
+      event.returnValue = "";
+    });
+    document.addEventListener("keydown", event => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+        event.preventDefault();
+        saveDocument();
+      }
+    });
+
+    loadDocument(true);
+  </script>
+</body>
+</html>
